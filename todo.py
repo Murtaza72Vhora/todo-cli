@@ -10,6 +10,7 @@ from rich.text import Text
 console = Console()
 DATA_FILE = os.path.expanduser("~/.todo_cli.json")
 
+
 # ---------- storage ----------
 def load_tasks() -> List[Dict[str, Any]]:
     if not os.path.exists(DATA_FILE):
@@ -20,12 +21,15 @@ def load_tasks() -> List[Dict[str, Any]]:
     except json.JSONDecodeError:
         return []
 
+
 def save_tasks(tasks: List[Dict[str, Any]]) -> None:
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(tasks, f, indent=2)
 
+
 def next_id(tasks: List[Dict[str, Any]]) -> int:
     return max([t["id"] for t in tasks], default=0) + 1
+
 
 # ---------- operations ----------
 def add_task(title: str, priority: int | None, due: str | None) -> Dict[str, Any]:
@@ -42,6 +46,7 @@ def add_task(title: str, priority: int | None, due: str | None) -> Dict[str, Any
     save_tasks(tasks)
     return task
 
+
 def complete_task(task_id: int) -> bool:
     tasks = load_tasks()
     for t in tasks:
@@ -51,6 +56,7 @@ def complete_task(task_id: int) -> bool:
             return True
     return False
 
+
 def delete_task(task_id: int) -> bool:
     tasks = load_tasks()
     new_tasks = [t for t in tasks if t["id"] != task_id]
@@ -59,6 +65,7 @@ def delete_task(task_id: int) -> bool:
         return True
     return False
 
+
 def list_tasks(show_all: bool, show_done: bool) -> List[Dict[str, Any]]:
     tasks = load_tasks()
     if not show_all:
@@ -66,6 +73,29 @@ def list_tasks(show_all: bool, show_done: bool) -> List[Dict[str, Any]]:
     # sort: undone first, higher priority first, then id
     tasks.sort(key=lambda t: (t["done"], -(t["priority"] or 0), t["id"]))
     return tasks
+
+
+def edit_task(
+    task_id: int, title: str | None, priority: int | None, due: str | None
+) -> bool:
+    tasks = load_tasks()
+    for t in tasks:
+        if t["id"] == task_id:
+            if title is not None:
+                t["title"] = title
+            if priority is not None:
+                t["priority"] = priority
+            if due is not None:
+                try:
+                    datetime.fromisoformat(due)  # validate format
+                    t["due"] = due
+                except ValueError:
+                    console.print("[red]Invalid date format. Use YYYY-MM-DD[/red]")
+                    return False
+            save_tasks(tasks)
+            return True
+    return False
+
 
 # ---------- UI ----------
 def print_tasks_table(tasks: List[Dict[str, Any]]) -> None:
@@ -109,7 +139,11 @@ def print_tasks_table(tasks: List[Dict[str, Any]]) -> None:
                 due_text = Text(due, style="dim")
 
         # Status formatting
-        status = Text("✔ Done", style="green") if t["done"] else Text("• Pending", style="red")
+        status = (
+            Text("✔ Done", style="green")
+            if t["done"]
+            else Text("• Pending", style="red")
+        )
 
         table.add_row(
             str(t["id"]),
@@ -121,6 +155,7 @@ def print_tasks_table(tasks: List[Dict[str, Any]]) -> None:
 
     console.print(table)
 
+
 # ---------- CLI ----------
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -131,8 +166,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_add = sub.add_parser("add", help="Add a new task")
     p_add.add_argument("title", nargs="+", help="Task title")
-    p_add.add_argument("-p", "--priority", type=int, default=None, help="Priority (1=Low, 2=Medium, 3=High)")
-    p_add.add_argument("-d", "--due", type=str, default=None, help="Due date (YYYY-MM-DD)")
+    p_add.add_argument(
+        "-p",
+        "--priority",
+        type=int,
+        default=None,
+        help="Priority (1=Low, 2=Medium, 3=High)",
+    )
+    p_add.add_argument(
+        "-d", "--due", type=str, default=None, help="Due date (YYYY-MM-DD)"
+    )
 
     p_list = sub.add_parser("list", help="List tasks")
     group = p_list.add_mutually_exclusive_group()
@@ -144,7 +187,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_del = sub.add_parser("delete", help="Delete a task")
     p_del.add_argument("id", type=int, help="Task ID")
+
+    p_edit = sub.add_parser("edit", help="Edit a task")
+    p_edit.add_argument("id", type=int, help="Task ID")
+    p_edit.add_argument("-t", "--title", type=str, help="New title")
+    p_edit.add_argument(
+        "-p",
+        "--priority",
+        type=int,
+        choices=[1, 2, 3],
+        help="New priority (1=Low,2=Med,3=High)",
+    )
+    p_edit.add_argument("-d", "--due", type=str, help="New due date (YYYY-MM-DD)")
     return parser
+
 
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
@@ -159,10 +215,20 @@ def main(argv: list[str] | None = None) -> None:
         print_tasks_table(tasks)
     elif args.command == "done":
         ok = complete_task(args.id)
-        console.print("[cyan]Marked as done.[/cyan]" if ok else "[red]Task not found.[/red]")
+        console.print(
+            "[cyan]Marked as done.[/cyan]" if ok else "[red]Task not found.[/red]"
+        )
     elif args.command == "delete":
         ok = delete_task(args.id)
         console.print("[red]Deleted.[/red]" if ok else "[red]Task not found.[/red]")
+    elif args.command == "edit":
+        ok = edit_task(args.id, args.title, args.priority, args.due)
+        if ok:
+            console.print(f"[cyan]Task #{args.id} updated.[/cyan]")
+        else:
+            console.print("[red]Task not found.[/red]")
+
+
 
 if __name__ == "__main__":
     main()
