@@ -75,9 +75,3 @@ This ensures your tasks persist between sessions.
 
 Feel free to fork this project and submit pull requests!  
 Suggestions and improvements are welcome.
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License.
