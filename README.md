@@ -14,8 +14,6 @@ This project demonstrates how to create and manage tasks directly from the termi
 
 ---
 
-## 🚀 Getting Started
-
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/Murtaza72Vhora/todo-cli.git
