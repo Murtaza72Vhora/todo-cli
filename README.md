@@ -60,6 +60,20 @@ python todo.py delete 1
 
 ---
 
+
+### Edit a task
+```bash
+python todo.py edit 3 -t "New title" -p 2 -d 2025-09-05
+```
+- 3 → Task ID
+
+- -t or --title: Update the task title
+
+- -p or --priority: Update priority (1=Low, 2=Medium, 3=High)
+
+- -d or --due: Update due date in YYYY-MM-DD format
+---
+
 ## 🗂 Data Storage
 
 All tasks are stored in a JSON file in your home directory:
