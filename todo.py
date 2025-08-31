@@ -4,7 +4,11 @@ import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
+console = Console()
 DATA_FILE = os.path.expanduser("~/.todo_cli.json")
 
 # ---------- storage ----------
@@ -67,27 +71,56 @@ def list_tasks(show_all: bool, show_done: bool) -> List[Dict[str, Any]]:
 # ---------- UI ----------
 def print_tasks_table(tasks: List[Dict[str, Any]]) -> None:
     if not tasks:
-        print("No tasks to show.")
+        console.print("[yellow]No tasks to show.[/yellow]")
         return
-    rows = []
-    rows.append(["ID", "Title", "Pri", "Due", "Status"])
+
+    table = Table(title="📝 Todo List", show_lines=True)
+    table.add_column("ID", style="cyan", justify="right")
+    table.add_column("Title", style="magenta")
+    table.add_column("Priority", style="bold")
+    table.add_column("Due", style="blue")
+    table.add_column("Status", style="green")
+
     for t in tasks:
-        rows.append([
+        # Priority formatting
+        pri = t.get("priority")
+        if pri is None:
+            pri_text = Text("-", style="dim")
+        elif pri >= 3:
+            pri_text = Text(f"{pri} (High)", style="red bold")
+        elif pri == 2:
+            pri_text = Text(f"{pri} (Medium)", style="yellow")
+        else:
+            pri_text = Text(f"{pri} (Low)", style="green")
+
+        # Due date formatting
+        due = t.get("due")
+        due_text = Text(due or "-", style="dim")
+        if due:
+            try:
+                due_date = datetime.fromisoformat(due)
+                today = datetime.now().date()
+                if due_date.date() < today:
+                    due_text = Text(due, style="red")
+                elif due_date.date() == today:
+                    due_text = Text(due, style="yellow")
+                else:
+                    due_text = Text(due, style="blue")
+            except ValueError:
+                due_text = Text(due, style="dim")
+
+        # Status formatting
+        status = Text("✔ Done", style="green") if t["done"] else Text("• Pending", style="red")
+
+        table.add_row(
             str(t["id"]),
             t["title"],
-            str(t["priority"] or ""),
-            t["due"] or "",
-            "✔" if t["done"] else "•",
-        ])
-    # column widths
-    widths = [max(len(row[i]) for row in rows) for i in range(len(rows[0]))]
-    # print
-    def fmt(row):
-        return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
-    print(fmt(rows[0]))
-    print(fmt(["─"*w for w in widths]))
-    for row in rows[1:]:
-        print(fmt(row))
+            pri_text,
+            due_text,
+            status,
+        )
+
+    console.print(table)
 
 # ---------- CLI ----------
 def build_parser() -> argparse.ArgumentParser:
@@ -99,18 +132,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_add = sub.add_parser("add", help="Add a new task")
     p_add.add_argument("title", nargs="+", help="Task title")
-    p_add.add_argument("-p", "--priority", type=int, default=None, help="Priority number (higher = more important)")
-    p_add.add_argument("-d", "--due", type=str, default=None, help="Due date (any text, e.g. 2025-09-01)")
-    
+    p_add.add_argument("-p", "--priority", type=int, default=None, help="Priority (1=Low, 2=Medium, 3=High)")
+    p_add.add_argument("-d", "--due", type=str, default=None, help="Due date (YYYY-MM-DD)")
+
     p_list = sub.add_parser("list", help="List tasks")
     group = p_list.add_mutually_exclusive_group()
     group.add_argument("--all", action="store_true", help="Show all tasks")
     group.add_argument("--done", action="store_true", help="Show only completed tasks")
-    # default (no flags) shows only undone
-    
+
     p_done = sub.add_parser("done", help="Mark a task as done")
     p_done.add_argument("id", type=int, help="Task ID")
-    
+
     p_del = sub.add_parser("delete", help="Delete a task")
     p_del.add_argument("id", type=int, help="Task ID")
     return parser
@@ -122,16 +154,16 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "add":
         title = " ".join(args.title).strip()
         task = add_task(title, args.priority, args.due)
-        print(f"Added #{task['id']}: {task['title']}")
+        console.print(f"[green]Added task[/green] #{task['id']}: {task['title']}")
     elif args.command == "list":
         tasks = list_tasks(show_all=args.all, show_done=args.done)
         print_tasks_table(tasks)
     elif args.command == "done":
         ok = complete_task(args.id)
-        print("Marked as done." if ok else "Task not found.")
+        console.print("[cyan]Marked as done.[/cyan]" if ok else "[red]Task not found.[/red]")
     elif args.command == "delete":
         ok = delete_task(args.id)
-        print("Deleted." if ok else "Task not found.")
+        console.print("[red]Deleted.[/red]" if ok else "[red]Task not found.[/red]")
 
 if __name__ == "__main__":
     main()
